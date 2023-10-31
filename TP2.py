@@ -10,32 +10,70 @@ class ErrorRegistrador(Exception):
 
 class Paterson:
     def __init__(self):
-        self.registradores_mips = self.registradores()
+        self.registradores_mips = { 0: '$zero', 1: '$at', 2: '$v0', 3: '$v1', 4: '$a0', 5: '$a1', 6: '$a2', 7: '$a3',
+    8: '$t0', 9: '$t1', 10: '$t2', 11: '$t3', 12: '$t4', 13: '$t5', 14: '$t6', 15: '$t7',
+    16: '$s0', 17: '$s1', 18: '$s2', 19: '$s3', 20: '$s4', 21: '$s5', 22: '$s6', 23: '$s7',
+    24: '$t8', 25: '$t9', 26: '$k0', 27: '$k1', 28: '$gp', 29: '$sp', 30: '$fp', 31: '$ra'}
         self.resultados = []
+        self.tipoI = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq'}
+        self.tipoR= {34: 'sub', 36: 'and', 37: 'or'}
+        self.tipoJ = {2: "j"}
+    
+    def tipoR_func(self, op_code, rs, rt, td, shamt, funct):
+        pass
+    
+    def tipoI_func(self,op_code, rs, rt, const):
+        pass
 
-    def Tipo_R(self, hex_code):
-        hex_code = hex_code[2:] if hex_code.startswith("0x") else hex_code  
-        
+    def tipoJ_func(self,op_code,address):
+        pass
+    def desmonta(self, hex_code, tipoR_func, tipoI_func, tipoJ_func):
         if len(hex_code) != 10:
             raise ErrorCode("Código em Hexadecimal com tamanho inapropriado")
+        
+        hex_code = hex_code[2:] if hex_code.startswith("0x") else hex_code  
         
         binary_code = "" #string que armazena o binário
 
         for numero in hex_code:
             binary_code += f"{int(numero, 16):04b}" #converte para binário em separação de 4 bits
+        print(binary_code)
+        op_code = int(binary_code[0:6])
+        
 
-        op_code = binary_code[0: 6]
-        rs = binary_code[6: 11]
-        rt = binary_code[11: 16]
-        rd = binary_code[16: 21]
-        shamt = binary_code[21: 26]
-        funct = binary_code[26: 32]
 
-        op_code_map = {'0': 6, '1': 6}
-        funct = op_code_map.get(op_code, 0) #valor padrão 0
+        if op_code == 0:                
+         rs = int(binary_code[6: 11])
+         rt = int(binary_code[11: 16])
+         rd = int(binary_code[16: 21])
+         shamt = int(binary_code[21: 26])
+         funct = int(binary_code[26: 32])
+         tipoR_func(op_code,rs, rt,rd,shamt,funct)
+        
+
+        elif op_code == 1:
+            rs = int(binary_code[6: 11])
+            rt = int(binary_code[11: 16])
+            if int(binary_code[16]== 1): 
+                const = int(binary_code[17:32])
+                const = const-pow(2,15)
+            else:
+                const = int(binary_code[16: 32])
+            tipoI_func(op_code, rs, rt, const)
+        else:
+            address= binary_code[6:32]
+            tipoJ_func(op_code, address)
+            pass
+        #funct = op_code_map.get(op_code, 0) #valor padrão 0
+
+
+
+
+
 
         funcao_op_code = self.codigos(op_code, funct)
-        rs_nome = self.registradores_mips.get(int(rs, 2)) # 2 de binário
+        rs_nome = self.registradores_mips.get(int(rs, 10)) # 2 de binário
+        
         rt_nome = self.registradores_mips.get(int(rt, 2))
         rd_nome = self.registradores_mips.get(int(rd, 2))
 
@@ -50,40 +88,19 @@ class Paterson:
 
         self.resultados.append({ 'op_code': op_code, 'funct': funct, 'rs_nome': rs_nome, 
                                  'rt_nome': rt_nome, 'rd_nome': rd_nome,})
-
-
-    def codigos(self, op_code, funct):
-        codigos_zero = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq', 2: 'j'}
-        codigos_um = {34: 'sub', 36: 'and', 37: 'or'}
-
-        # op-code 0 ou 1
-        if op_code == 0:
-            return codigos_zero.get(funct, None)
-        elif op_code == 1:
-            return codigos_um.get(funct, None)
-
-        return None
-
-    def registradores(self):
-        return{
-            '$zero': 0, '$at': 1, '$v0': 2, '$v1': 3, '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
-            '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11, '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
-            '$s0': 16, '$s1': 17, '$s2': 18, '$s3': 19, '$s4': 20, '$s5': 21, '$s6': 22, '$s7': 23,
-            '$t8': 24, '$t9': 25, '$k0': 26, '$k1': 27, '$gp': 28, '$sp': 29, '$fp': 30, '$ra': 31
-        }
-
-
+        
     #def carregar_codigo(self, filename, code_type):
     #    with open(filename, 'r') as file:
     #        lines = file.readlines()
     #        for line in lines:
     #            self.Tipo_R(line)  # Processar as linhas como Tipo-R (ajuste para outros tipos)
 
-    def desmontagem(self, entrada, saida):
+    def escrever(self, entrada, saida):
             with open(entrada, 'r') as file:
                 linhas = file.readlines()
                 for linha in linhas:
-                    self.Tipo_R(linha)  
+                    print(linha)
+                    self.desmonta(linha)  
 
             with open(saida, "w") as s:
                 for resultado in self.resultados:
@@ -98,7 +115,14 @@ class Paterson:
 
 
 if __name__ == '__main__':
+    binary_string = "11111011"  # Substitua isso pelo seu número binário negativo
+
+    # Use a função int() com a base 2 para converter o binário em decimal
+    decimal_number = int(binary_string, 2)
+
+    # O decimal_number agora conterá o valor inteiro equivalente ao número binário negativo
+    print(decimal_number)
     entrada = "entrada.asm"
     saida = "saida.asm"
-    paterson = Paterson("intrução", "0x00cd0820")
-    paterson.desmontagem(entrada, saida)
+    paterson = Paterson()
+    paterson.escrever(entrada, saida)
