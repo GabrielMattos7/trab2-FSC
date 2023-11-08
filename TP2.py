@@ -18,7 +18,7 @@ class Paterson:
         self.tipoI = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq'} #dicionario das intruções tipo I
         self.tipoR= {34: 'sub', 36: 'and', 37: 'or'}#dicionario das intruções tipo R
         self.tipoJ = {2: "j"} #dicionario das intruções tipo J
-    
+        self.address_inicial = 0x00400000     
     def tipoR_func(self, op_code, rs, rt, rd, shamt, funct):
         pass
     
@@ -43,6 +43,8 @@ class Paterson:
         print(binary_code)
         op_code = int(binary_code[0:6])
         
+
+        #tipo R
         if op_code == 0:                
             rs = int(binary_code[6: 11], 2)
             rt = int(binary_code[11: 16], 2)
@@ -51,12 +53,12 @@ class Paterson:
             funct = int(binary_code[26: 32], 2)
         
             
-            op_code_nome = self.registradores_mips.get(int(op_code))
+            op_code_nome = self.tipoR.get(int(op_code))
             rs_nome = self.registradores_mips.get(int(rs))
             rt_nome = self.registradores_mips.get(int(rt))
             rd_nome = self.registradores_mips.get(int(rd))
             shamt_nome = self.registradores_mips.get(int(shamt))
-            funct_nome = self.registradores_mips.get(int(funct))
+            funct_nome = self.tipoR.get(int(funct))
 
             funcao_op_code = op_code_nome + funct_nome
 
@@ -75,31 +77,59 @@ class Paterson:
                         'rs_nome': rs_nome, 'rt_nome': rt_nome, 'rd_nome': rd_nome,})
 
 
+        #tipo J
         elif op_code == 2:
-            address= binary_code[6:32]
-            #tipoJ_func(op_code, address)
-            pass
+            address= int(binary_code[6:32],2)
+            final_address = self.address_inicial + address
+           #preciso criar a maneira de adicionar os x bits de cada função
+           #preciso criar a maneira de adicionar os bits extras no endereço base do codigo
 
+            code_26 = int(address[4: 25],2) #tirando os 4 primeiros e os 2 ultimos
+
+            #verificação de erros:
+            if op_code is not self.tipoJ:
+                raise ErrorRegistrador(f"{op_code} não é uma função MIPS válido")
+            if rd_nome is None:
+                raise ErrorRegistrador(f"{rd} não é um registrador MIPS válido")
+
+            #junção do tipo R
+            self.resultados.append({'tipo': 'Tipo J', 'op_code': op_code, 'endereço' : address})
+
+
+        #tipo I
         else:
-            rs = int(binary_code[6: 11])
-            rt = int(binary_code[11: 16])
-            
+            rs = int(binary_code[6: 11],2)
+            rt = int(binary_code[11: 16],2)
+            op_code = int(binary_code[0: 6],2)
+
             if int(binary_code[16]== 1): 
                 const = int(binary_code[17:32])
                 const = const-pow(2,15)
-                constante = const
+                const = int(binary_code[16: 32],2)
             else:
-                const = int(binary_code[16: 32])
-            #tipoI_func(op_code, rs, rt, constante)
-        
-        #funct = op_code_map.get(op_code, 0) #valor padrão 0
-        
-    #def carregar_codigo(self, filename, code_type):
-    #    with open(filename, 'r') as file:
-    #        lines = file.readlines()
-    #        for line in lines:
-    #            self.Tipo_R(line)  # Processar as linhas como Tipo-R (ajuste para outros tipos)
+                const = int(binary_code[16: 32],2)
 
+            #ler qual código é do dicionario
+            op_code_nome = self.tipoI.get(int(op_code))
+            rs_nome = self.registradores_mips.get(int(rs))
+            rt_nome = self.registradores_mips.get(int(rt))
+            const_final = const
+
+            #verificação de erros:
+            if not op_code_nome:
+                raise ErrorCode(f'{op_code} não é uma função MIPS válida')
+            if rs_nome is None:
+                raise ErrorRegistrador(f"{rs} não é um registrador MIPS válido")
+            if rt_nome is None:
+                raise ErrorRegistrador(f"{rt} não é um registrador MIPS válido")
+            if const_final is None:
+                raise ErrorRegistrador(f"{const} não é uma constante válida")
+
+            #junção do tipo I
+            self.resultados.append({'tipo': 'Tipo I', 'op_code': op_code_nome,
+                        'rs': rs_nome, 'rt': rt_nome, 'const': const_final,})
+           
+        
     def escrever(self, entrada, saida):
             with open(entrada, 'r') as file:
                 linhas = file.readlines()
@@ -120,7 +150,7 @@ class Paterson:
 
 
 if __name__ == '__main__':
-    entrada = "entrada.asm" #limpei o main aqui
+    entrada = "entrada.asm"
     saida = "saida.asm"
     paterson = Paterson()
     paterson.escrever(entrada, saida)
