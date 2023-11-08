@@ -14,12 +14,12 @@ class Paterson:
     8: '$t0', 9: '$t1', 10: '$t2', 11: '$t3', 12: '$t4', 13: '$t5', 14: '$t6', 15: '$t7',
     16: '$s0', 17: '$s1', 18: '$s2', 19: '$s3', 20: '$s4', 21: '$s5', 22: '$s6', 23: '$s7',
     24: '$t8', 25: '$t9', 26: '$k0', 27: '$k1', 28: '$gp', 29: '$sp', 30: '$fp', 31: '$ra'}
-        self.resultados = []
-        self.tipoI = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq'}
-        self.tipoR= {34: 'sub', 36: 'and', 37: 'or'}
-        self.tipoJ = {2: "j"}
+        self.resultados = [] #armazenar os resultados em listas
+        self.tipoI = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq'} #dicionario das intruções tipo I
+        self.tipoR= {34: 'sub', 36: 'and', 37: 'or'}#dicionario das intruções tipo R
+        self.tipoJ = {2: "j"} #dicionario das intruções tipo J
     
-    def tipoR_func(self, op_code, rs, rt, td, shamt, funct):
+    def tipoR_func(self, op_code, rs, rt, rd, shamt, funct):
         pass
     
     def tipoI_func(self,op_code, rs, rt, const):
@@ -27,11 +27,14 @@ class Paterson:
 
     def tipoJ_func(self,op_code,address):
         pass
-    def desmonta(self, hex_code, tipoR_func, tipoI_func, tipoJ_func):
+
+        #aqui em cima tá as linhas separadas pra montagem da decodificação em formato de instrução mips
+
+    def desmonta(self, hex_code):
         if len(hex_code) != 10:
             raise ErrorCode("Código em Hexadecimal com tamanho inapropriado")
         
-        hex_code = hex_code[2:] if hex_code.startswith("0x") else hex_code  
+        hex_code = hex_code[2:] if hex_code.startswith("0x") else hex_code  # hex_code recebe o binario sem os primeiros dois digitos 0x
         
         binary_code = "" #string que armazena o binário
 
@@ -40,54 +43,56 @@ class Paterson:
         print(binary_code)
         op_code = int(binary_code[0:6])
         
-
-
         if op_code == 0:                
-         rs = int(binary_code[6: 11])
-         rt = int(binary_code[11: 16])
-         rd = int(binary_code[16: 21])
-         shamt = int(binary_code[21: 26])
-         funct = int(binary_code[26: 32])
-         tipoR_func(op_code,rs, rt,rd,shamt,funct)
+            rs = int(binary_code[6: 11], 2)
+            rt = int(binary_code[11: 16], 2)
+            rd = int(binary_code[16: 21], 2)
+            shamt = int(binary_code[21: 26], 2)
+            funct = int(binary_code[26: 32], 2)
         
+            
+            op_code_nome = self.registradores_mips.get(int(op_code))
+            rs_nome = self.registradores_mips.get(int(rs))
+            rt_nome = self.registradores_mips.get(int(rt))
+            rd_nome = self.registradores_mips.get(int(rd))
+            shamt_nome = self.registradores_mips.get(int(shamt))
+            funct_nome = self.registradores_mips.get(int(funct))
 
-        elif op_code == 1:
+            funcao_op_code = op_code_nome + funct_nome
+
+            #verificação de erros:
+            if not funcao_op_code:
+                raise ErrorCode(f'{op_code} não é uma função MIPS válida')
+            if rs_nome is None:
+                raise ErrorRegistrador(f"{rs} não é um registrador MIPS válido")
+            if rt_nome is None:
+                raise ErrorRegistrador(f"{rt} não é um registrador MIPS válido")
+            if rd_nome is None:
+                raise ErrorRegistrador(f"{rd} não é um registrador MIPS válido")
+
+            #junção do tipo R
+            self.resultados.append({'tipo': 'Tipo R', 'funcao_op_code': funcao_op_code,
+                        'rs_nome': rs_nome, 'rt_nome': rt_nome, 'rd_nome': rd_nome,})
+
+
+        elif op_code == 2:
+            address= binary_code[6:32]
+            #tipoJ_func(op_code, address)
+            pass
+
+        else:
             rs = int(binary_code[6: 11])
             rt = int(binary_code[11: 16])
+            
             if int(binary_code[16]== 1): 
                 const = int(binary_code[17:32])
                 const = const-pow(2,15)
+                constante = const
             else:
                 const = int(binary_code[16: 32])
-            tipoI_func(op_code, rs, rt, const)
-        else:
-            address= binary_code[6:32]
-            tipoJ_func(op_code, address)
-            pass
-        #funct = op_code_map.get(op_code, 0) #valor padrão 0
-
-
-
-
-
-
-        funcao_op_code = self.codigos(op_code, funct)
-        rs_nome = self.registradores_mips.get(int(rs, 10)) # 2 de binário
+            #tipoI_func(op_code, rs, rt, constante)
         
-        rt_nome = self.registradores_mips.get(int(rt, 2))
-        rd_nome = self.registradores_mips.get(int(rd, 2))
-
-        if not funcao_op_code:
-            raise ErrorCode(f'{op_code} não é uma função MIPS válida')
-        if rs_nome is None:
-            raise ErrorRegistrador(f"{rs} não é um registrador MIPS válido")
-        if rt_nome is None:
-            raise ErrorRegistrador(f"{rt} não é um registrador MIPS válido")
-        if rd_nome is None:
-            raise ErrorRegistrador(f"{rd} não é um registrador MIPS válido")
-
-        self.resultados.append({ 'op_code': op_code, 'funct': funct, 'rs_nome': rs_nome, 
-                                 'rt_nome': rt_nome, 'rd_nome': rd_nome,})
+        #funct = op_code_map.get(op_code, 0) #valor padrão 0
         
     #def carregar_codigo(self, filename, code_type):
     #    with open(filename, 'r') as file:
@@ -115,14 +120,7 @@ class Paterson:
 
 
 if __name__ == '__main__':
-    binary_string = "11111011"  # Substitua isso pelo seu número binário negativo
-
-    # Use a função int() com a base 2 para converter o binário em decimal
-    decimal_number = int(binary_string, 2)
-
-    # O decimal_number agora conterá o valor inteiro equivalente ao número binário negativo
-    print(decimal_number)
-    entrada = "entrada.asm"
+    entrada = "entrada.asm" #limpei o main aqui
     saida = "saida.asm"
     paterson = Paterson()
     paterson.escrever(entrada, saida)
