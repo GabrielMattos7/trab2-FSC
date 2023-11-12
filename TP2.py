@@ -1,5 +1,3 @@
-from typing import Any
-
 class ErrorCode(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -10,11 +8,12 @@ class ErrorRegistrador(Exception):
 
 class Paterson:
     def __init__(self):
+        #dicionario com chave sendo numero
         self.registradores_mips_num = { 0: '$zero', 1: '$at', 2: '$v0', 3: '$v1', 4: '$a0', 5: '$a1', 6: '$a2', 7: '$a3',
     8: '$t0', 9: '$t1', 10: '$t2', 11: '$t3', 12: '$t4', 13: '$t5', 14: '$t6', 15: '$t7',
     16: '$s0', 17: '$s1', 18: '$s2', 19: '$s3', 20: '$s4', 21: '$s5', 22: '$s6', 23: '$s7',
     24: '$t8', 25: '$t9', 26: '$k0', 27: '$k1', 28: '$gp', 29: '$sp', 30: '$fp', 31: '$ra'}
-        
+        #dicionario com chave sendo string
         self.registradores_mips_string = { '$zero': 0, '$at': 1, '$v0': 2, '$v1': 3, '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
     '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11, '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
     '$s0': 16, '$s1': 17, '$s2': 18, '$s3': 19, '$s4': 20, '$s5': 21, '$s6': 22, '$s7': 23,
@@ -31,6 +30,14 @@ class Paterson:
         self.tipoI_string = {'sltiu': 11, 'lw': 23, 'sw': 43, 'beq': 4}
         self.tipoR_string = {'sub': 34, 'and': 36, 'or': 37}
         self.tipoJ_string = {'j': 2}
+        self.num_loops = 0
+        self.rotulo_loop = {}
+
+    def label(self):
+        self.num_loops += 1
+        return f"label_{self.num_loops}" # gera os labels com numeros crescentes
+
+
 
     def desmonta(self, hex_code):
         if len(hex_code) != 10:
@@ -83,12 +90,10 @@ class Paterson:
         elif op_code == 2:
             address= int(binary_code[6:32],2)
             final_address = self.address_inicial + address
-           #preciso criar a maneira de adicionar os x bits de cada função
-           #preciso criar a maneira de adicionar os bits extras no endereço base do codigo
+           
 
             code_26 = int(address[4: 25],2) #tirando os 4 primeiros e os 2 ultimos
 
-            #verificação de erros:
             if op_code is not self.tipoJ:
                 raise ErrorRegistrador(f"{op_code} não é uma função MIPS válido")
             if rd_nome is None:
@@ -132,9 +137,10 @@ class Paterson:
                         'rs': rs_nome, 'rt': rt_nome, 'const': const_final,})
            
     def montar(self, instruction):
-        div = instruction.split()
-        function = div[0].lower()
+        div = instruction.split() #divide a instrução 
+        function = div[0].lower() #pega a função
 
+        #montar tipo R
         if function in self.tipoR_string:            
             rs = self.registradores_mips_string[div[3]] #separa as string dos registradores 
             rt = self.registradores_mips_string[div[5]]
@@ -151,8 +157,7 @@ class Paterson:
 
             bits_concatenados = op_code_bin + rs_bin + rt_bin + rd_bin + shamt + funct_bin
 
-            resultado_concatenado = (
-                "0x" +
+            resultado_concatenado = ("0x" +
                 str(int(bits_concatenados[0:4], 2)) +
                 str(int(bits_concatenados[4:8], 2)) +
                 str(int(bits_concatenados[8:12], 2)) +
@@ -163,23 +168,23 @@ class Paterson:
                 str(int(bits_concatenados[28:32], 2))
                 )
     
-        if function in self.tipoI_string:
+        #montar tipo I
+        elif function in self.tipoI_string:
             rs = self.registradores_mips_string[div[2]] #separa as string dos registradores 
             rt = self.registradores_mips_string[div[3]]
             const = int(div[4])
-            funct = self.tipoR_string[function] #le a instrução e separa numa variavel
+            funct = self.tipoI_string[function] #le a instrução e separa numa variavel
             
             op_code_bin = format(0, '06b').zfill(6) #usando format e 06b, ele le o codigo em decimal...
             rs_bin = format(rs, '05b').zfill(5) #...transforma em representação binaria com os bits que eu desejar
             rt_bin = format(rt, '05b').zfill(5)
-            const_bin = format(const, '016b').zfill(16)[-16:] #esse [-16:] é pra ter ctz que nao vai ter mais de 16 bits
+            const_bin = format(const, '016b').zfill(16)
             funct_dec = int(funct, 16)
             funct_bin = format(funct_dec, '06b').zfill(6)
             
             bits_concatenados = op_code_bin + rs_bin + rt_bin + const_bin + funct_bin
 
-            resultado_concatenado = (
-            "0x" +
+            resultado_concatenado = ("0x" +
             str(int(bits_concatenados[0:4], 2)) +
             str(int(bits_concatenados[4:8], 2)) +
             str(int(bits_concatenados[8:12], 2)) +
@@ -189,13 +194,61 @@ class Paterson:
             str(int(bits_concatenados[24:28], 2)) +
             str(int(bits_concatenados[28:32], 2))
             )
+    
 
-        #if function in self.tipoJ_string:
+        elif function in self.tipoJ_string:
+            address = int(div[1])
+            opcode = self.tipoJ_string[function]
+            deslocamento = (self.rotulo_loop[label] - final_address) //4
+            
+            if deslocamento < 0:
+                deslocamento += 2**32
+
+            if label.lower() == 'loop':
+                label = self.label()
+                self.rotulo_loop[label] = final_address
+            else:
+                pass
+
+
+            # Obtém o endereço do rótulo a partir do dicionário de rótulos
+            if label not in self.rotulos:
+                raise ErrorCode(f"Rótulo {label} não encontrado.")
+            address = self.rotulos[label]
+
+            # Calcula o endereço final
+            final_address = self.address_inicial + address
+
+            # Converte o endereço final para binário
+            address_bin = format(final_address, '032b')
+
+            # Descarta os bits mais e menos significativos
+            address_bin = address_bin[4:30]
+
+            op_code_bin = format(opcode, '06b').zfill(6)
+            address_bin = format(address, '026b').zfill(26)
+
+            # Concatenação dos bits
+            bits_concatenados = op_code_bin + address_bin
+            resultado_concatenado = ( "0x" +
+                str(int(bits_concatenados[0:4], 2)) +
+                str(int(bits_concatenados[4:8], 2)) +
+                str(int(bits_concatenados[8:12], 2)) +
+                str(int(bits_concatenados[12:16], 2)) +
+                str(int(bits_concatenados[16:20], 2)) +
+                str(int(bits_concatenados[20:24], 2)) +
+                str(int(bits_concatenados[24:28], 2)) +
+                str(int(bits_concatenados[28:32], 2))
+            )
+        
+
 
     def escrever(self, entrada, saida):
             with open(entrada, 'r') as file:
                 linhas = file.readlines()
                 for linha in linhas:
+                    if 'loop' in linha:
+                        self.rotulo_loop['loop'] = self.address_inicial
                     print(linha)
                     self.desmonta(linha)  
 
@@ -212,7 +265,7 @@ class Paterson:
 
 
 if __name__ == '__main__':
-    entrada = "entrada.asm"
-    saida = "saida.asm"
+    entrada = "entrada_hex.asm"
+    saida = "saida_hex.asm"
     paterson = Paterson()
     paterson.escrever(entrada, saida)
