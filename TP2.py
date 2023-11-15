@@ -13,6 +13,7 @@ class Paterson:
     8: '$t0', 9: '$t1', 10: '$t2', 11: '$t3', 12: '$t4', 13: '$t5', 14: '$t6', 15: '$t7',
     16: '$s0', 17: '$s1', 18: '$s2', 19: '$s3', 20: '$s4', 21: '$s5', 22: '$s6', 23: '$s7',
     24: '$t8', 25: '$t9', 26: '$k0', 27: '$k1', 28: '$gp', 29: '$sp', 30: '$fp', 31: '$ra'}
+        
         #dicionario com chave sendo string
         self.registradores_mips_string = { '$zero': 0, '$at': 1, '$v0': 2, '$v1': 3, '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
     '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11, '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
@@ -21,6 +22,7 @@ class Paterson:
         
         #instruções para desmontar
         self.resultados_desmonta = [] #armazenar os resultados_desmonta em listas
+        self.resultados_montar = []
         self.tipoI_num = {11: 'sltiu', 23: 'lw', 43: 'sw', 4: 'beq'} #dicionario das intruções tipo I
         self.tipoR_num = {34: 'sub', 36: 'and', 37: 'or'}#dicionario das intruções tipo R
         self.tipoJ_num = {2: "j"} #dicionario das intruções tipo J
@@ -31,27 +33,26 @@ class Paterson:
         self.tipoR_string = {'sub': 34, 'and': 36, 'or': 37}
         self.tipoJ_string = {'j': 2}
         self.num_loops = 0
-        self.rotulo_loop = {}
+        self.label_loop = {}
 
     def label(self):
         self.num_loops += 1
         return f"label_{self.num_loops}" # gera os labels com numeros crescentes
 
-
+    def __str__(self):
+        return '\n'.join(self.resultados_desmonta)
 
     def desmonta(self, hex_code):
-        if len(hex_code) != 10:
+        if len(hex_code) > 10:
             raise ErrorCode("Código em Hexadecimal com tamanho inapropriado")
         
-        hex_code = hex_code[2:] if hex_code.startswith("0x") else hex_code  # hex_code recebe o binario sem os primeiros dois digitos 0x
-        
+        hex_code = hex_code[2:]
         binary_code = "" #string que armazena o binário
 
         for numero in hex_code:
             binary_code += f"{int(numero, 16):04b}" #converte para binário em separação de 4 bits
         print(binary_code)
-        op_code = int(binary_code[0:6])
-        
+        op_code = int(binary_code[0:6],2)
 
         #tipo R
         if op_code == 0:                
@@ -60,90 +61,78 @@ class Paterson:
             rd = int(binary_code[16: 21], 2)
             shamt = int(binary_code[21: 26], 2)
             funct = int(binary_code[26: 32], 2)
-        
             
-            op_code_nome = self.tipoR_num.get(int(op_code))
+            op_code_nome = self.tipoR_num.get(op_code)
             rs_nome = self.registradores_mips_num.get(int(rs))
             rt_nome = self.registradores_mips_num.get(int(rt))
             rd_nome = self.registradores_mips_num.get(int(rd))
             shamt_nome = self.registradores_mips_num.get(int(shamt))
             funct_nome = self.tipoR_num.get(int(funct))
 
-            funcao_op_code = op_code_nome + funct_nome
-
-            #verificação de erros:
-            if not funcao_op_code:
-                raise ErrorCode(f'{op_code} não é uma função MIPS válida')
-            if rs_nome is None:
-                raise ErrorRegistrador(f"{rs} não é um registrador MIPS válido")
-            if rt_nome is None:
-                raise ErrorRegistrador(f"{rt} não é um registrador MIPS válido")
-            if rd_nome is None:
-                raise ErrorRegistrador(f"{rd} não é um registrador MIPS válido")
-
             #junção do tipo R
-            self.resultados_desmonta.append({'tipo': 'Tipo R', 'funcao_op_code': funcao_op_code,
-                        'rs_nome': rs_nome, 'rt_nome': rt_nome, 'rd_nome': rd_nome,})
-
+            
+            instrucao = f"{funct_nome}, {rd_nome}, {rt_nome}, {rs_nome}"
+            self.resultados_desmonta.append(instrucao)
+            with open("saida_hex.asm", "a+") as s_hex:
+                s_hex.write(instrucao + '\n')
 
         #tipo J
         elif op_code == 2:
             address= int(binary_code[6:32],2)
             final_address = self.address_inicial + address
-           
-
-            code_26 = int(address[4: 25],2) #tirando os 4 primeiros e os 2 ultimos
-
-            if op_code is not self.tipoJ:
-                raise ErrorRegistrador(f"{op_code} não é uma função MIPS válido")
-            if rd_nome is None:
-                raise ErrorRegistrador(f"{rd} não é um registrador MIPS válido")
-
-            #junção do tipo R
-            self.resultados_desmonta.append({'tipo': 'Tipo J', 'op_code': op_code, 'endereço' : address})
-
+        
+            code_26 = int(format(address, '032b')[4: 25],2) #tirando os 4 primeiros e os 2 ultimos
+            code_final = op_code + code_26
+            if final_address in self.rotulo_loop.values():
+                for label, addr in self.rotulo_loop.items():
+                    if addr == final_address:
+                        instrucao = f"j, {label}"
+                        break
+            else:
+                instrucao = f"j, {final_address}"
+            #junção do tipo J
+            self.resultados_desmonta.append(instrucao)
+            with open("saida_hex.asm", "a+") as s_hex:
+                s_hex.write(instrucao + '\n')
 
         #tipo I
         else:
             rs = int(binary_code[6: 11],2)
             rt = int(binary_code[11: 16],2)
-            op_code = int(binary_code[0: 6],2)
-
-            if int(binary_code[16]== 1): 
-                const = int(binary_code[17:32])
-                const = const-pow(2,15)
-                const = int(binary_code[16: 32],2)
+            op_code = int(binary_code[0: 6],2) #até aqui, divide o binario e coloca os numeros decimais corretos
+            if int(binary_code[16]== 1):
+                print("inside do else") #não ta cheganod aqui
+                const = int(binary_code[16:32],2) - pow(2,16)
             else:
+                print('depois do else')
                 const = int(binary_code[16: 32],2)
 
-            #ler qual código é do dicionario
             op_code_nome = self.tipoI_num.get(int(op_code))
             rs_nome = self.registradores_mips_num.get(int(rs))
-            rt_nome = self.registradores_mips_num.get(int(rt))
-            const_final = const
-
-            #verificação de erros:
-            if not op_code_nome:
-                raise ErrorCode(f'{op_code} não é uma função MIPS válida')
-            if rs_nome is None:
-                raise ErrorRegistrador(f"{rs} não é um registrador MIPS válido")
-            if rt_nome is None:
-                raise ErrorRegistrador(f"{rt} não é um registrador MIPS válido")
-            if const_final is None:
-                raise ErrorRegistrador(f"{const} não é uma constante válida")
+            rt_nome = self.registradores_mips_num.get(int(rt)) #até aqui ta certo
+            print(const, "CONSTANTE") #não ta lendo corretamente a constante
 
             #junção do tipo I
-            self.resultados_desmonta.append({'tipo': 'Tipo I', 'op_code': op_code_nome,
-                        'rs': rs_nome, 'rt': rt_nome, 'const': const_final,})
-           
+            instrucao = f"{op_code_nome}, {rt_nome}, {rs_nome}, {const}"
+            print("AAAAAAA", instrucao)
+            self.resultados_desmonta.append(instrucao)
+            with open("saida_hex.asm", "a+") as s_hex:
+                s_hex.write(instrucao +'\n') #esse aqui ta indo
+
     def montar(self, instruction):
         div = instruction.split() #divide a instrução 
+        print("dividindo", div)
+        if len(div)<5:
+            print("23082459037590823")
+            return div
+        print('oi')
         function = div[0].lower() #pega a função
+        print(function,"aiaiaiaquemininaperversa")
 
         #montar tipo R
         if function in self.tipoR_string:            
-            rs = self.registradores_mips_string[div[3]] #separa as string dos registradores 
-            rt = self.registradores_mips_string[div[5]]
+            rs = self.registradores_mips_string[div[2]] #separa as string dos registradores 
+            rt = self.registradores_mips_string[div[3]]
             rd = self.registradores_mips_string[div[1]]
             funct = self.tipoR_string[function] #le a instrução e separa numa variavel
             
@@ -152,12 +141,12 @@ class Paterson:
             rt_bin = format(rt, '05b').zfill(5)
             rd_bin = format(rd, '05b').zfill(5) #colocar zfill para garantir que teremos 5/6 bits mesmo que sejam zeros, zfill preenche com zeros a esquerda
             shamt = format(0, '05b').zfill(5)
-            funct_dec = int(funct, 16)
-            funct_bin = format(funct_dec, '06b').zfill(6)
+            funct_bin = format(funct, '06b').zfill(6)
 
             bits_concatenados = op_code_bin + rs_bin + rt_bin + rd_bin + shamt + funct_bin
 
-            resultado_concatenado = ("0x" +
+            resultado_concatenado = (
+                "0x" +
                 str(int(bits_concatenados[0:4], 2)) +
                 str(int(bits_concatenados[4:8], 2)) +
                 str(int(bits_concatenados[8:12], 2)) +
@@ -166,22 +155,25 @@ class Paterson:
                 str(int(bits_concatenados[20:24], 2)) +
                 str(int(bits_concatenados[24:28], 2)) +
                 str(int(bits_concatenados[28:32], 2))
-                )
+            )
+            print(resultado_concatenado, "LLLLLLLLLLLLLLLLLLLLLLL")
+            self.resultados_montar.append(resultado_concatenado)
+            with open("saida_codes.asm", "a+") as s_codes:
+                s_codes.write(resultado_concatenado + '\n')
     
         #montar tipo I
         elif function in self.tipoI_string:
-            rs = self.registradores_mips_string[div[2]] #separa as string dos registradores 
-            rt = self.registradores_mips_string[div[3]]
-            const = int(div[4])
+            rs = self.registradores_mips_string[div[1]] #separa as string dos registradores 
+            rt = self.registradores_mips_string[div[2]]
+            const = int(div[3])
             funct = self.tipoI_string[function] #le a instrução e separa numa variavel
-            
+            print('RRTRTTRTRTRRTRTRT', rt)
             op_code_bin = format(0, '06b').zfill(6) #usando format e 06b, ele le o codigo em decimal...
             rs_bin = format(rs, '05b').zfill(5) #...transforma em representação binaria com os bits que eu desejar
             rt_bin = format(rt, '05b').zfill(5)
             const_bin = format(const, '016b').zfill(16)
-            funct_dec = int(funct, 16)
-            funct_bin = format(funct_dec, '06b').zfill(6)
-            
+            funct_bin = format(funct, '06b').zfill(6)
+            print("RT_BIN", rt_bin)
             bits_concatenados = op_code_bin + rs_bin + rt_bin + const_bin + funct_bin
 
             resultado_concatenado = ("0x" +
@@ -194,8 +186,12 @@ class Paterson:
             str(int(bits_concatenados[24:28], 2)) +
             str(int(bits_concatenados[28:32], 2))
             )
+            print("bits concatenados:", bits_concatenados)
+            self.resultados_montar.append(resultado_concatenado)
+            with open("saida_codes.asm", "a+") as s_codes:
+                s_codes.write(resultado_concatenado + '\n')#esse print nao ta rolando
     
-
+        #Montar Tipo J
         elif function in self.tipoJ_string:
             address = int(div[1])
             opcode = self.tipoJ_string[function]
@@ -210,20 +206,15 @@ class Paterson:
             else:
                 pass
 
-
-            # Obtém o endereço do rótulo a partir do dicionário de rótulos
-            if label not in self.rotulos:
+            if label not in self.label_loop:
                 raise ErrorCode(f"Rótulo {label} não encontrado.")
-            address = self.rotulos[label]
+            address = self.label_loop[label]
 
-            # Calcula o endereço final
             final_address = self.address_inicial + address
 
-            # Converte o endereço final para binário
             address_bin = format(final_address, '032b')
 
-            # Descarta os bits mais e menos significativos
-            address_bin = address_bin[4:30]
+            address_bin = address_bin[4:30] #tira os bits
 
             op_code_bin = format(opcode, '06b').zfill(6)
             address_bin = format(address, '026b').zfill(26)
@@ -240,32 +231,53 @@ class Paterson:
                 str(int(bits_concatenados[24:28], 2)) +
                 str(int(bits_concatenados[28:32], 2))
             )
-        
+            print("bits CONCATENADOS AS##############", bits_concatenados)
+            self.resultados_montar.append(resultado_concatenado)
+            with open("saida_codes.asm", "a+") as s_codes:
+                s_codes.write(resultado_concatenado + '\n')
 
 
-    def escrever(self, entrada, saida):
-            with open(entrada, 'r') as file:
-                linhas = file.readlines()
-                for linha in linhas:
-                    if 'loop' in linha:
-                        self.rotulo_loop['loop'] = self.address_inicial
-                    print(linha)
-                    self.desmonta(linha)  
+    def escrever_code(self, entrada_codes, saida_codes):
+        print('CODESCODESCODES')
+        with open(entrada_codes, 'r') as file:
+            linhas = file.readlines()
+            for linha in linhas:
+                if 'loop' in linha:
+                    self.rotulo_loop['loop'] = self.address_inicial
+                self.montar(linha.strip())
 
-            with open(saida, "w") as s:
-                for resultado in self.resultados:
-                    s.write(f"Operação: Tipo-R\n")
-                    s.write(f"op_code: {resultado['op_code']}\n")
-                    s.write(f"funct: {resultado['funct']}\n")
-                    s.write(f"rs_nome: {resultado['rs_nome']}\n")
-                    s.write(f"rt_nome: {resultado['rt_nome']}\n")
-                    s.write(f"rd_nome: {resultado['rd_nome']}\n")
-                    s.write(f"shamt: {resultado['shamt']}\n")
-                    s.write("final do codigo\n")
+        with open(saida_codes, 'w') as saida_file:
+            for resultado in self.resultados_montar:
+                saida_file.write(resultado + '\n')
 
+    def escrever_hex(self, entrada_hex, saida_hex):
+        self.rotulo_loop = {}
+        with open(entrada_hex, 'r') as file:
+            linhas = file.readlines()
+            for linha in linhas:
+                if 'loop' in linha:
+                    self.rotulo_loop['loop'] = self.address_inicial
+                self.desmonta(linha.strip())
+
+        with open(saida_hex, 'w') as saida_file:
+            for resultado in self.resultados_desmonta:
+                saida_file.write(resultado + '\n')
 
 if __name__ == '__main__':
-    entrada = "entrada_hex.asm"
-    saida = "saida_hex.asm"
+    entrada_codes = "entrada_codes.asm"
+    saida_codes = "saida_codes.asm"
+    entrada_hex = "entrada_hex.asm"
+    saida_hex = "saida_hex.asm"
+
     paterson = Paterson()
-    paterson.escrever(entrada, saida)
+
+    paterson.escrever_hex(entrada_hex, saida_hex)
+    paterson.escrever_code(entrada_codes, saida_codes)
+
+    #0xAD480000
+    #0x12A0FFFE
+    #0xAD480000
+    #0x02744925
+    #0x02744925
+    #0x02744925
+    #0x08100005
