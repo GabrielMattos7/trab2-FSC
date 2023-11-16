@@ -1,3 +1,4 @@
+import re
 class ErrorCode(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -161,6 +162,8 @@ class Paterson:
             return
 
         function = div[0].lower() #pega a função
+        print(function)
+        print(div)
         #montar tipo R
         if function in self.tipoR_string:
 
@@ -170,6 +173,7 @@ class Paterson:
             funct = self.tipoR_string[function] #le a instrução e separa numa variavel
             op_code_bin = format(0, '06b').zfill(6) #usando format e 06b, ele le o codigo em decimal...
             rs_bin = format(rs, '05b').zfill(5) #...transforma em representação binaria com os bits que eu desejar
+            rt_bin = rt
             rt_bin = format(rt, '05b').zfill(5)
             rd_bin = format(rd, '05b').zfill(5) #colocar zfill para garantir que teremos 5/6 bits mesmo que sejam zeros, zfill preenche com zeros a esquerda
             shamt = format(0, '05b').zfill(5)
@@ -188,18 +192,26 @@ class Paterson:
     
         #montar tipo I
         elif function in self.tipoI_string:
-            rs = self.registradores_mips_string[div[1].rstrip(',')]  
+            print(div)
+            rs = self.registradores_mips_string[div[1].rstrip(',')] 
             if '(' in div[2]:
                 const, parte = div[2].split('(')
                 const = int(const)
                 rt = self.registradores_mips_string[parte.rstrip(')')]  
             else:
                 const = self.registradores_mips_string[div[2].rstrip(',')]
-                rt = None
+                #rt = None
+            if function == 'beq':
+                rt_bin = [div[3].rstrip(',')]
+                for item,value in self.label_loop.items():
+                    if rt_bin == item:
+                        pass
+                        #AQUI VAI CALCULAR A DIST
+                print("HAHAHHAHAHHAHH")  #RT TEM QUE SER A DISTANCIA 
+            else: rt_bin = format(rt, '05b').zfill(5)
             funct = self.tipoI_string[function] 
             op_code_bin = format(0, '06b').zfill(6)
             rs_bin = format(rs, '05b').zfill(5)
-            rt_bin = format(rt, '05b').zfill(5)
             const_bin = format(const, '016b').zfill(16)
             funct_bin = format(funct, '06b').zfill(6)
             
@@ -212,6 +224,7 @@ class Paterson:
 
             resultado_concatenado = ("0x" + hex_num)
             self.resultados_montar.append(resultado_concatenado)
+            print(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
 
@@ -259,7 +272,13 @@ class Paterson:
     def escrever_code(self, entrada_codes, saida_codes):
         with open(entrada_codes, 'r') as file:
             linhas = file.readlines()
+            contador = 1
             for linha in linhas:
+                if 'label_' in linha.split(' ')[0]:
+            
+                    if 'label_' in linha.split(':')[0] and 'j' not in linha.split(':')[0]:
+                        self.label_loop[linha.split(':')[0]] = contador-3
+                contador+=1
                 self.montar(linha.strip())
 
         with open(saida_codes, 'w') as saida_file:
