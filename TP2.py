@@ -34,8 +34,7 @@ class Paterson:
         self.tipoJ_string = {'j': 2}
         self.num_loops = 0
         self.label_loop = {}
-        # if label_loop[current_address]: write label_loop[current_address] na linba atual
-                #label_1: 4
+
     def label(self):
         self.num_loops += 1
         return f"label_{self.num_loops}" # gera os labels com numeros crescentes
@@ -43,10 +42,10 @@ class Paterson:
     def __str__(self):
         return '\n'.join(self.resultados_desmonta)
 
-    def desmonta(self, hex_code,linha1):
+    def desmonta(self, hex_code, linha1):
         if len(hex_code) > 10:
             raise ErrorCode("Código em Hexadecimal com tamanho inapropriado")
-        
+
         hex_code = hex_code[2:]
         binary_code = "" #string que armazena o binário
 
@@ -80,8 +79,8 @@ class Paterson:
         elif op_code == 2:
             address= binary_code[6:32] #binario
 
-            address = "0000"+ str(address) + "00"
-            # label_add = current_addr + (deslocamento * 4) + 4
+            address = "0000"+ str(address) + "00" 
+
 
             hex_num = "0x"
             for i in range(0, len(address), 4):
@@ -89,23 +88,26 @@ class Paterson:
                 hex_num += str(hex(int(var, 2))[2:])
             
             address = int(hex_num,16) #endereco estar em hexa do jeito certo para ser subtraido
-            address -= 0x00400000 # eh para estar com algo ai 
-            linha_pra_Escrever_label = address + (1)
+
+            address -= 0x00400000 
+
             distancia_de_linhas = int((int(address))/4) + 1 #para saber quantas instrucoes esta distante 
+            
             label = self.label()
             
             self.label_loop[label] = distancia_de_linhas #adiciona ao dicionario
             instrucao = f"j {label}"
+            self.resultados_desmonta.append(instrucao)
             with open("saida_hex.asm", "a+") as s_hex:
                 s_hex.write(instrucao + '\n')
 
-        
 
         #tipo I
         else:
             rs = int(binary_code[6: 11],2)
             rt = int(binary_code[11: 16],2)
             op_code = int(binary_code[0: 6],2) #divide o binario e coloca os numeros decimais corretos
+
             #calculo de negativo
             if int(binary_code[16])== 1:
                 const = int(binary_code[16:32],2) - pow(2,16)
@@ -116,51 +118,49 @@ class Paterson:
             rs_nome = self.registradores_mips_num.get(int(rs))
             rt_nome = self.registradores_mips_num.get(int(rt))
             if op_code == 4: 
-                        
                 #const vai ser um endereço para escrever un label
                 #const+=1  #incrementa op_code
-
-                print("const incrementado", const)
-                contador =1 
-                print("JAckson",op_code_nome)
-
-                line_to_write= linha1+1 + const
-                    #contador+1 por que o loop nao chega em beq, pois ainda nao fez append da operação    contador+=1
+                line_to_write= linha1 + const
+                    
                 #line_to_write está correto aparentemente
                 label = self.label()
+                const = label
                 self.label_loop[label] = line_to_write
-            #junção do tipo I
-            instrucao = f"{op_code_nome}, {rt_nome}, {rs_nome}, {const}"
+
+            #junção do tipo I se for lw e sw:
+            if op_code_nome in ['sw', 'lw']:
+                instrucao = f"{op_code_nome}, {rt_nome}, {const}({rs_nome})"
+            else:
+                instrucao = f"{op_code_nome}, {rt_nome}, {rs_nome}, {const}"
             self.resultados_desmonta.append(instrucao)
-        print("\n"*3)
-        print(self.label_loop)
+            with open("saida_hex.asm", "a+") as s_hex:
+                s_hex.write(instrucao +'\n') 
+
+        
         for item, value in self.label_loop.items():
             contador = 1 
             for i, instrucao in enumerate(self.resultados_desmonta):
-                print(value , "->>" , i )
-                if  int(value) == int(contador):
-                    print(item +":  "+ instrucao)
+                if int(value) == i and item not in instrucao:
                     nova_instrucao = (item +":  "+ instrucao)
                     self.resultados_desmonta[i]=nova_instrucao
-            contador+=1
 
     def montar(self, instruction):
         div = instruction.split() #divide a instrução 
-        print("\ndividindo em partes: ", div)
         if len(div) < 2:
             print("Ignorando linha sem instruções MIPS: ", instruction)
             return instruction
-        #tentavida de arumar o label:
-        label = None
-        # Verifica se a instrução contém um rótulo (label)
-        if ':' in div[0]:
-            label = div[0]
+       
+       # Verificando se a instrução contém um rótulo label
+        if div[0].endswith(':'):
+            label = div[0][:-1]  # Remove o caractere : do final do rótulo
             div = div[1:]  # Remove o rótulo da lista
+        else:
+            label = None
 
+        if not div:  # Ignora linhas sem instruções MIPS
+            return
 
         function = div[0].lower() #pega a função
-        
-
         #montar tipo R
         if function in self.tipoR_string:
 
@@ -182,7 +182,6 @@ class Paterson:
                 hex_num += hex(int(var, 2))[2:]
 
             resultado_concatenado = ( "0x" + hex_num)
-            print("resultado tipo R:", resultado_concatenado)
             self.resultados_montar.append(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
@@ -190,7 +189,6 @@ class Paterson:
         #montar tipo I
         elif function in self.tipoI_string:
             rs = self.registradores_mips_string[div[1].rstrip(',')]  
-            print('RS', rs)
             if '(' in div[2]:
                 const, parte = div[2].split('(')
                 const = int(const)
@@ -213,62 +211,52 @@ class Paterson:
                 hex_num += hex(int(var, 2))[2:]
 
             resultado_concatenado = ("0x" + hex_num)
-            print("bits concatenados:", bits_concatenados)
-            print("resultado concatenado:" , resultado_concatenado)
             self.resultados_montar.append(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
 
-    
+
+
+        #SANTIFICADO SEJA O VOSSO PC:
+
+
+            print('antes do tipo j')
         #Montar Tipo J
         elif function in self.tipoJ_string:
-            address = int(div[1])
             opcode = self.tipoJ_string[function]
-            deslocamento = (self.rotulo_loop[label] - final_address) //4
+            print('op dos guri:', opcode)
+            print('ante do if')
+            address_loop = self.label_loop
+            address= 0x00400000
             
-            if deslocamento < 0:
-                deslocamento += 2**32
+            deslocamento = address_loop * 4
+            final_address = address + deslocamento
+            # Calcule a distância para a primeira instrução após o label
+            primeira_instrucao = self.label_loop[list(self.label_loop.keys())[0]]
+            distancia_para_primeira = final_address - primeira_instrucao
 
-            if label and label.lower() == 'loop':
-                label = self.label()
-                self.rotulo_loop[label] = final_address
-            else:
-                pass
+            print('Distância para a primeira instrução após o label:', distancia_para_primeira)
 
-            if label not in self.label_loop:
-                raise ErrorCode(f"Rótulo {label} não encontrado.")
-            address = self.label_loop[label]
-
-            final_address = self.address_inicial + address
-
+            ########
+            
+            #formatação do endereço
             address_bin = format(final_address, '032b')
+            address_bin = address_bin[4:30]
 
-            address_bin = address_bin[4:30] #tira os bits
-
-            op_code_bin = format(opcode, '06b').zfill(6)
-            address_bin = format(address, '026b').zfill(26)
-
-            # Concatenação dos bits
-            bits_concatenados = op_code_bin + address_bin
-            resultado_concatenado = ( "0x" +
-                str(int(bits_concatenados[0:4], 2)) +
-                str(int(bits_concatenados[4:8], 2)) +
-                str(int(bits_concatenados[8:12], 2)) +
-                str(int(bits_concatenados[12:16], 2)) +
-                str(int(bits_concatenados[16:20], 2)) +
-                str(int(bits_concatenados[20:24], 2)) +
-                str(int(bits_concatenados[24:28], 2)) +
-                str(int(bits_concatenados[28:32], 2))
-            )
-            print("bits CONCATENADOS tipo j: ", bits_concatenados)
-            print("resultado tipo j montar: ", resultado_concatenado)
-            self.resultados_montar.append(resultado_concatenado)
+            # concatenar o endereço mais opcode binario
+            bits_concatenados = format(opcode, '06b').zfill(6) + address_bin
+            
+            #formatação dos bits em hexa e escrever no arquivo:
+            hex_num = ""
+            for i in range(0, len(bits_concatenados), 4):
+                var = bits_concatenados[i: i+4]
+                hex_num += hex(int(var, 2))[2:]
+            resultado_concatenado = ("0x" + hex_num)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
 
 
     def escrever_code(self, entrada_codes, saida_codes):
-        print('\n DAQUI PRA BAIXO É CODES:')
         with open(entrada_codes, 'r') as file:
             linhas = file.readlines()
             for linha in linhas:
@@ -284,8 +272,8 @@ class Paterson:
             linha1 = 1
             linhas = file.readlines()
             for linha in linhas:
-                self.desmonta(linha.strip(),linha1)
-                linha1+=1
+                self.desmonta(linha.strip(), linha1)
+                linha1 += 1
 
         with open(saida_hex, 'w') as saida_file:
             for resultado in self.resultados_desmonta:
@@ -301,11 +289,3 @@ if __name__ == '__main__':
 
     paterson.escrever_hex(entrada_hex, saida_hex)
     paterson.escrever_code(entrada_codes, saida_codes)
-
-    #0xAD480000
-    #0x12A0FFFE
-    #0xAD480000
-    #0x02744925
-    #0x02744925
-    #0x02744925
-    #0x08100005
