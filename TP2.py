@@ -51,7 +51,7 @@ class Paterson:
 
         for numero in hex_code:
             binary_code += f"{int(numero, 16):04b}" #converte para binário em separação de 4 bits
-        print(binary_code)
+
         op_code = int(binary_code[0:6],2)
 
         #tipo R
@@ -77,49 +77,67 @@ class Paterson:
 
         #tipo J
         elif op_code == 2:
-            address= int(binary_code[6:32],2)
-            final_address = self.address_inicial + address
-        
-            code_26 = int(format(address, '032b')[4: 25],2) #tirando os 4 primeiros e os 2 ultimos
-            code_final = op_code + code_26
-            if final_address in self.rotulo_loop.values():
-                for label, addr in self.rotulo_loop.items():
-                    if addr == final_address:
-                        instrucao = f"j, {label}"
-                        break
-            else:
-                instrucao = f"j, {final_address}"
-            #junção do tipo J
-            self.resultados_desmonta.append(instrucao)
+            address= binary_code[6:32] #binario
+
+            address = "0000"+ str(address) + "00" 
+
+
+            hex_num = "0x"
+            for i in range(0, len(address), 4):
+                var = address[i: i+4]
+                hex_num += str(hex(int(var, 2))[2:])
+            
+            address = int(hex_num,16) #endereco estar em hexa do jeito certo para ser subtraido
+
+            address -= 0x00400000 # eh para estar com algo ai 
+
+            distancia_de_linhas = int((int(address))/4) + 1 #para saber quantas instrucoes esta distante 
+            
+            label = self.label()
+
+            print(label)
+            
+            self.label_loop[label] = distancia_de_linhas #adiciona ao dicionario
+            instrucao = f"j {label}"
             with open("saida_hex.asm", "a+") as s_hex:
                 s_hex.write(instrucao + '\n')
+
+        
 
         #tipo I
         else:
             rs = int(binary_code[6: 11],2)
             rt = int(binary_code[11: 16],2)
-            op_code = int(binary_code[0: 6],2) #até aqui, divide o binario e coloca os numeros decimais corretos
-            print("binario completo:", binary_code)
-            print("binario !!",binary_code[16])
+            op_code = int(binary_code[0: 6],2) #divide o binario e coloca os numeros decimais corretos
+
             #calculo de negativo
             if int(binary_code[16])== 1:
-                print("inside do else") #não ta cheganod aqui
                 const = int(binary_code[16:32],2) - pow(2,16)
             else:
-                print('depois do else')
                 const = int(binary_code[16: 32],2)
 
             op_code_nome = self.tipoI_num.get(int(op_code))
             rs_nome = self.registradores_mips_num.get(int(rs))
-            rt_nome = self.registradores_mips_num.get(int(rt)) #até aqui ta certo
-            print(const, "CONSTANTE") #não ta lendo corretamente a constante
+            rt_nome = self.registradores_mips_num.get(int(rt))
 
             #junção do tipo I
             instrucao = f"{op_code_nome}, {rt_nome}, {rs_nome}, {const}"
-            print("AAAAAAA", instrucao)
             self.resultados_desmonta.append(instrucao)
             with open("saida_hex.asm", "a+") as s_hex:
-                s_hex.write(instrucao +'\n') #esse aqui ta indo
+                s_hex.write(instrucao +'\n') 
+
+        
+        for item, value in self.label_loop.items():
+            print(item)
+            print(value)
+            contador = 1 
+            for i, instrucao in enumerate(self.resultados_desmonta):
+                if i == contador:
+                    print("AAAAAAAAAAAAAAAA")
+                    nova_instrucao = (item +":  "+ instrucao)
+                    print(nova_instrucao)
+                    self.resultados_desmonta[i]=nova_instrucao
+            contador+=1
 
     def montar(self, instruction):
         div = instruction.split() #divide a instrução 
@@ -136,11 +154,11 @@ class Paterson:
 
 
         function = div[0].lower() #pega a função
-        print("função antes dos ifs e elses: ", function)
+        
 
         #montar tipo R
         if function in self.tipoR_string:
-            print('dentro do if do tipo R')            
+
             rs = self.registradores_mips_string[div[2].rstrip(',')] #separa as string dos registradores 
             rt = self.registradores_mips_string[div[3]]
             rd = self.registradores_mips_string[div[1].rstrip(',')]
@@ -249,8 +267,6 @@ class Paterson:
         with open(entrada_codes, 'r') as file:
             linhas = file.readlines()
             for linha in linhas:
-                if 'loop' in linha:
-                    self.rotulo_loop['loop'] = self.address_inicial
                 self.montar(linha.strip())
 
         with open(saida_codes, 'w') as saida_file:
@@ -262,8 +278,6 @@ class Paterson:
         with open(entrada_hex, 'r') as file:
             linhas = file.readlines()
             for linha in linhas:
-                if 'loop' in linha:
-                    self.rotulo_loop['loop'] = self.address_inicial
                 self.desmonta(linha.strip())
 
         with open(saida_hex, 'w') as saida_file:
