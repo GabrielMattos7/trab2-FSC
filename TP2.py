@@ -70,7 +70,6 @@ class Paterson:
             funct_nome = self.tipoR_num.get(int(funct))
 
             #junção do tipo R
-            
             instrucao = f"{funct_nome}, {rd_nome}, {rt_nome}, {rs_nome}"
             self.resultados_desmonta.append(instrucao)
             with open("saida_hex.asm", "a+") as s_hex:
@@ -100,7 +99,10 @@ class Paterson:
             rs = int(binary_code[6: 11],2)
             rt = int(binary_code[11: 16],2)
             op_code = int(binary_code[0: 6],2) #até aqui, divide o binario e coloca os numeros decimais corretos
-            if int(binary_code[16]== 1):
+            print("binario completo:", binary_code)
+            print("binario !!",binary_code[16])
+            #calculo de negativo
+            if int(binary_code[16])== 1:
                 print("inside do else") #não ta cheganod aqui
                 const = int(binary_code[16:32],2) - pow(2,16)
             else:
@@ -121,75 +123,79 @@ class Paterson:
 
     def montar(self, instruction):
         div = instruction.split() #divide a instrução 
-        print("dividindo", div)
-        if len(div)<5:
-            print("23082459037590823")
-            return div
-        print('oi')
+        print("\ndividindo em partes: ", div)
+        if len(div) < 2:
+            print("Ignorando linha sem instruções MIPS: ", instruction)
+            return instruction
+        #tentavida de arumar o label:
+        label = None
+        # Verifica se a instrução contém um rótulo (label)
+        if ':' in div[0]:
+            label = div[0]
+            div = div[1:]  # Remove o rótulo da lista
+
+
         function = div[0].lower() #pega a função
-        print(function,"aiaiaiaquemininaperversa")
+        print("função antes dos ifs e elses: ", function)
 
         #montar tipo R
-        if function in self.tipoR_string:            
-            rs = self.registradores_mips_string[div[2]] #separa as string dos registradores 
+        if function in self.tipoR_string:
+            print('dentro do if do tipo R')            
+            rs = self.registradores_mips_string[div[2].rstrip(',')] #separa as string dos registradores 
             rt = self.registradores_mips_string[div[3]]
-            rd = self.registradores_mips_string[div[1]]
+            rd = self.registradores_mips_string[div[1].rstrip(',')]
             funct = self.tipoR_string[function] #le a instrução e separa numa variavel
-            
             op_code_bin = format(0, '06b').zfill(6) #usando format e 06b, ele le o codigo em decimal...
             rs_bin = format(rs, '05b').zfill(5) #...transforma em representação binaria com os bits que eu desejar
             rt_bin = format(rt, '05b').zfill(5)
             rd_bin = format(rd, '05b').zfill(5) #colocar zfill para garantir que teremos 5/6 bits mesmo que sejam zeros, zfill preenche com zeros a esquerda
             shamt = format(0, '05b').zfill(5)
             funct_bin = format(funct, '06b').zfill(6)
-
             bits_concatenados = op_code_bin + rs_bin + rt_bin + rd_bin + shamt + funct_bin
+            
+            hex_num = ""
+            for i in range(0, len(bits_concatenados), 4):
+                var = bits_concatenados[i: i+4]
+                hex_num += hex(int(var, 2))[2:]
 
-            resultado_concatenado = (
-                "0x" +
-                str(int(bits_concatenados[0:4], 2)) +
-                str(int(bits_concatenados[4:8], 2)) +
-                str(int(bits_concatenados[8:12], 2)) +
-                str(int(bits_concatenados[12:16], 2)) +
-                str(int(bits_concatenados[16:20], 2)) +
-                str(int(bits_concatenados[20:24], 2)) +
-                str(int(bits_concatenados[24:28], 2)) +
-                str(int(bits_concatenados[28:32], 2))
-            )
-            print(resultado_concatenado, "LLLLLLLLLLLLLLLLLLLLLLL")
+            resultado_concatenado = ( "0x" + hex_num)
+            print("resultado tipo R:", resultado_concatenado)
             self.resultados_montar.append(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
     
         #montar tipo I
         elif function in self.tipoI_string:
-            rs = self.registradores_mips_string[div[1]] #separa as string dos registradores 
-            rt = self.registradores_mips_string[div[2]]
-            const = int(div[3])
-            funct = self.tipoI_string[function] #le a instrução e separa numa variavel
-            print('RRTRTTRTRTRRTRTRT', rt)
-            op_code_bin = format(0, '06b').zfill(6) #usando format e 06b, ele le o codigo em decimal...
-            rs_bin = format(rs, '05b').zfill(5) #...transforma em representação binaria com os bits que eu desejar
+            rs = self.registradores_mips_string[div[1].rstrip(',')]  
+            print('RS', rs)
+            if '(' in div[2]:
+                const, parte = div[2].split('(')
+                const = int(const)
+                rt = self.registradores_mips_string[parte.rstrip(')')]  
+            else:
+                const = self.registradores_mips_string[div[2].rstrip(',')]
+                rt = None
+            funct = self.tipoI_string[function] 
+            op_code_bin = format(0, '06b').zfill(6)
+            rs_bin = format(rs, '05b').zfill(5)
             rt_bin = format(rt, '05b').zfill(5)
             const_bin = format(const, '016b').zfill(16)
             funct_bin = format(funct, '06b').zfill(6)
-            print("RT_BIN", rt_bin)
-            bits_concatenados = op_code_bin + rs_bin + rt_bin + const_bin + funct_bin
+            
+            #tirei o op_code_bin pq eu ACHO que tava sobrando coisa aqui
+            bits_concatenados = funct_bin + rs_bin + rt_bin + const_bin
+            hex_num = ""
+            for i in range(0, len(bits_concatenados), 4):
+                var = bits_concatenados[i: i+4]
+                hex_num += hex(int(var, 2))[2:]
 
-            resultado_concatenado = ("0x" +
-            str(int(bits_concatenados[0:4], 2)) +
-            str(int(bits_concatenados[4:8], 2)) +
-            str(int(bits_concatenados[8:12], 2)) +
-            str(int(bits_concatenados[12:16], 2)) +
-            str(int(bits_concatenados[16:20], 2)) +
-            str(int(bits_concatenados[20:24], 2)) +
-            str(int(bits_concatenados[24:28], 2)) +
-            str(int(bits_concatenados[28:32], 2))
-            )
+            resultado_concatenado = ("0x" + hex_num)
             print("bits concatenados:", bits_concatenados)
+            print("resultado concatenado:" , resultado_concatenado)
             self.resultados_montar.append(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
-                s_codes.write(resultado_concatenado + '\n')#esse print nao ta rolando
+                s_codes.write(resultado_concatenado + '\n')
+
     
         #Montar Tipo J
         elif function in self.tipoJ_string:
@@ -200,7 +206,7 @@ class Paterson:
             if deslocamento < 0:
                 deslocamento += 2**32
 
-            if label.lower() == 'loop':
+            if label and label.lower() == 'loop':
                 label = self.label()
                 self.rotulo_loop[label] = final_address
             else:
@@ -231,14 +237,15 @@ class Paterson:
                 str(int(bits_concatenados[24:28], 2)) +
                 str(int(bits_concatenados[28:32], 2))
             )
-            print("bits CONCATENADOS AS##############", bits_concatenados)
+            print("bits CONCATENADOS tipo j: ", bits_concatenados)
+            print("resultado tipo j montar: ", resultado_concatenado)
             self.resultados_montar.append(resultado_concatenado)
             with open("saida_codes.asm", "a+") as s_codes:
                 s_codes.write(resultado_concatenado + '\n')
 
 
     def escrever_code(self, entrada_codes, saida_codes):
-        print('CODESCODESCODES')
+        print('\n DAQUI PRA BAIXO É CODES:')
         with open(entrada_codes, 'r') as file:
             linhas = file.readlines()
             for linha in linhas:
