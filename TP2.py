@@ -34,7 +34,8 @@ class Paterson:
         self.tipoJ_string = {'j': 2}
         self.num_loops = 0
         self.label_loop = {}
-
+        # if label_loop[current_address]: write label_loop[current_address] na linba atual
+                #label_1: 4
     def label(self):
         self.num_loops += 1
         return f"label_{self.num_loops}" # gera os labels com numeros crescentes
@@ -42,7 +43,7 @@ class Paterson:
     def __str__(self):
         return '\n'.join(self.resultados_desmonta)
 
-    def desmonta(self, hex_code):
+    def desmonta(self, hex_code,linha1):
         if len(hex_code) > 10:
             raise ErrorCode("Código em Hexadecimal com tamanho inapropriado")
         
@@ -79,8 +80,8 @@ class Paterson:
         elif op_code == 2:
             address= binary_code[6:32] #binario
 
-            address = "0000"+ str(address) + "00" 
-
+            address = "0000"+ str(address) + "00"
+            # label_add = current_addr + (deslocamento * 4) + 4
 
             hex_num = "0x"
             for i in range(0, len(address), 4):
@@ -88,14 +89,10 @@ class Paterson:
                 hex_num += str(hex(int(var, 2))[2:])
             
             address = int(hex_num,16) #endereco estar em hexa do jeito certo para ser subtraido
-
             address -= 0x00400000 # eh para estar com algo ai 
-
+            linha_pra_Escrever_label = address + (1)
             distancia_de_linhas = int((int(address))/4) + 1 #para saber quantas instrucoes esta distante 
-            
             label = self.label()
-
-            print(label)
             
             self.label_loop[label] = distancia_de_linhas #adiciona ao dicionario
             instrucao = f"j {label}"
@@ -109,7 +106,6 @@ class Paterson:
             rs = int(binary_code[6: 11],2)
             rt = int(binary_code[11: 16],2)
             op_code = int(binary_code[0: 6],2) #divide o binario e coloca os numeros decimais corretos
-
             #calculo de negativo
             if int(binary_code[16])== 1:
                 const = int(binary_code[16:32],2) - pow(2,16)
@@ -119,23 +115,32 @@ class Paterson:
             op_code_nome = self.tipoI_num.get(int(op_code))
             rs_nome = self.registradores_mips_num.get(int(rs))
             rt_nome = self.registradores_mips_num.get(int(rt))
+            if op_code == 4: 
+                        
+                #const vai ser um endereço para escrever un label
+                #const+=1  #incrementa op_code
 
+                print("const incrementado", const)
+                contador =1 
+                print("JAckson",op_code_nome)
+
+                line_to_write= linha1+1 + const
+                    #contador+1 por que o loop nao chega em beq, pois ainda nao fez append da operação    contador+=1
+                #line_to_write está correto aparentemente
+                label = self.label()
+                self.label_loop[label] = line_to_write
             #junção do tipo I
             instrucao = f"{op_code_nome}, {rt_nome}, {rs_nome}, {const}"
             self.resultados_desmonta.append(instrucao)
-            with open("saida_hex.asm", "a+") as s_hex:
-                s_hex.write(instrucao +'\n') 
-
-        
+        print("\n"*3)
+        print(self.label_loop)
         for item, value in self.label_loop.items():
-            print(item)
-            print(value)
             contador = 1 
             for i, instrucao in enumerate(self.resultados_desmonta):
-                if i == contador:
-                    print("AAAAAAAAAAAAAAAA")
+                print(value , "->>" , i )
+                if  int(value) == int(contador):
+                    print(item +":  "+ instrucao)
                     nova_instrucao = (item +":  "+ instrucao)
-                    print(nova_instrucao)
                     self.resultados_desmonta[i]=nova_instrucao
             contador+=1
 
@@ -276,9 +281,11 @@ class Paterson:
     def escrever_hex(self, entrada_hex, saida_hex):
         self.rotulo_loop = {}
         with open(entrada_hex, 'r') as file:
+            linha1 = 1
             linhas = file.readlines()
             for linha in linhas:
-                self.desmonta(linha.strip())
+                self.desmonta(linha.strip(),linha1)
+                linha1+=1
 
         with open(saida_hex, 'w') as saida_file:
             for resultado in self.resultados_desmonta:
